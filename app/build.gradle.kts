@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "io.github.konstantinberkow.mockexchange"
     compileSdk = 34
+    buildToolsVersion = "34.0.0"
 
     defaultConfig {
         applicationId = "io.github.konstantinberkow.mockexchange"
@@ -53,6 +54,11 @@ dependencies {
     implementation(libs.material)
 
     implementation(libs.kotlinx.coroutines.android)
+
+    implementation(libs.okhttp.logging)
+    implementation(libs.gson)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.gson)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
