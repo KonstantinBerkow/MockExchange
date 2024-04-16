@@ -5,5 +5,5 @@ import kotlinx.coroutines.flow.Flow
 
 interface ExchangeRatesSource {
 
-    suspend fun exchangeRates(): Flow<ExchangeRates>
+    fun exchangeRates(): Flow<ExchangeRates>
 }
