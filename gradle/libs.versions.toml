@@ -12,6 +12,7 @@ coroutines = "1.8.0"
 okhttp = "4.12.0"
 gson = "2.10.1"
 retrofit = "2.10.0"
+koin = "3.6.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -26,6 +27,7 @@ okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor",
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
 retrofit-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }
+koin-android = { group = "io.insert-koin", name = "koin-android", version.ref = "koin" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
