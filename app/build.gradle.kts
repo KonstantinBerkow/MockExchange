@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.jetbrainsKotlinAndroid)
@@ -18,12 +21,23 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    val localProperties = Properties()
+    localProperties.load(FileInputStream(rootProject.file("local.properties")))
+    val apiUrl = localProperties["api_url"] as? String
+    require(!apiUrl.isNullOrBlank()) {
+        "Please specify 'api_url' value in you 'local.properties' file!"
+    }
+
     buildTypes {
         debug {
             isMinifyEnabled = false
+            isDebuggable = true
+            buildConfigField("String", "API_URL", "\"$apiUrl\"")
         }
         release {
             isMinifyEnabled = true
+            isDebuggable = false
+            buildConfigField("String", "API_URL", "\"$apiUrl\"")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -34,6 +48,7 @@ android {
         }
     }
     buildFeatures {
+        buildConfig = true
         viewBinding = true
     }
     compileOptions {
