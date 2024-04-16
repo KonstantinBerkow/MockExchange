@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main_flow_graph.xml">
+
+    <fragment
+        android:id="@+id/exchange_fragment"
+        android:name="io.github.konstantinberkow.mockexchange.exchange.ExchangeFragment"
+        tools:layout="@layout/fragment_exchange">
+        <action
+            android:id="@+id/action_exchange_fragment_to_balance_fragment"
+            app:destination="@id/balance_fragment"
+            app:enterAnim="@android:anim/fade_in"
+            app:exitAnim="@android:anim/fade_out"
+            app:popEnterAnim="@android:anim/fade_in"
+            app:popExitAnim="@android:anim/fade_out"
+            app:popUpTo="@id/exchange_fragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/balance_fragment"
+        android:name="io.github.konstantinberkow.mockexchange.balance.BalanceFragment"
+        tools:layout="@layout/fragment_balance" />
+
+</navigation>
