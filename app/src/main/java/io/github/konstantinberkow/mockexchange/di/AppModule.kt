@@ -1,6 +1,5 @@
 package io.github.konstantinberkow.mockexchange.di
 
-import android.util.Log
 import com.google.gson.GsonBuilder
 import io.github.konstantinberkow.mockexchange.BuildConfig
 import io.github.konstantinberkow.mockexchange.entity.source.ExchangeRatesSource
@@ -14,6 +13,7 @@ import okhttp3.logging.HttpLoggingInterceptor
 import org.koin.dsl.module
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import timber.log.Timber
 import kotlin.time.DurationUnit
 import kotlin.time.toDuration
 
@@ -33,7 +33,7 @@ val appModule = module {
             .also {
                 if (BuildConfig.DEBUG) {
                     val loggingInterceptor = HttpLoggingInterceptor { message ->
-                        Log.v("Retrofit", message)
+                        Timber.tag("OkHttp").v(message)
                     }
                     loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY)
                     it.addInterceptor(loggingInterceptor)

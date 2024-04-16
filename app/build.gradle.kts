@@ -77,6 +77,8 @@ dependencies {
 
     implementation(libs.koin.android)
 
+    implementation(libs.timber)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
 }
