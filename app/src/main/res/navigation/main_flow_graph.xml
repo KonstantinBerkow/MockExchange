@@ -2,12 +2,13 @@
 <navigation xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/main_flow_graph.xml">
+    android:id="@+id/main_flow_graph.xml"
+    app:startDestination="@id/overview_fragment">
 
     <fragment
-        android:id="@+id/exchange_fragment"
-        android:name="io.github.konstantinberkow.mockexchange.exchange.ExchangeFragment"
-        tools:layout="@layout/fragment_exchange">
+        android:id="@+id/overview_fragment"
+        android:name="io.github.konstantinberkow.mockexchange.ui.overview.OverviewFragment"
+        tools:layout="@layout/fragment_overview">
         <action
             android:id="@+id/action_exchange_fragment_to_balance_fragment"
             app:destination="@id/balance_fragment"
@@ -15,12 +16,12 @@
             app:exitAnim="@android:anim/fade_out"
             app:popEnterAnim="@android:anim/fade_in"
             app:popExitAnim="@android:anim/fade_out"
-            app:popUpTo="@id/exchange_fragment" />
+            app:popUpTo="@id/overview_fragment" />
     </fragment>
 
     <fragment
         android:id="@+id/balance_fragment"
-        android:name="io.github.konstantinberkow.mockexchange.balance.BalanceFragment"
+        android:name="io.github.konstantinberkow.mockexchange.ui.balance.BalanceFragment"
         tools:layout="@layout/fragment_balance" />
 
 </navigation>
