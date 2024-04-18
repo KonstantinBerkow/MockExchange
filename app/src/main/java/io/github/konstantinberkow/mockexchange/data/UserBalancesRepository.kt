@@ -8,10 +8,10 @@ interface UserBalancesRepository {
 
     fun allBalances(): Flow<Set<Balance>>
 
-    fun performExchange(
+    suspend fun performExchange(
         discharge: UInt,
         source: Currency,
         addition: UInt,
         target: Currency
-    ): Flow<Unit>
+    )
 }

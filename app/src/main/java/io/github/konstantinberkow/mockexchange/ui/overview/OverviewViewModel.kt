@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -167,19 +168,19 @@ class OverviewViewModel(
                 Result.ExchangeFailure.NotEnoughFunds(exchange = action)
             )
         } else {
-            balancesRepository.performExchange(
-                discharge = discharge,
-                source = sourceCurrency,
-                addition = action.requestAmount,
-                target = action.target
-            )
-                .map<Unit, Result> { Result.ExchangeSuccess }
+            flow {
+                emit(Result.ExchangeStarted)
+                balancesRepository.performExchange(
+                    discharge = discharge,
+                    source = sourceCurrency,
+                    addition = action.requestAmount,
+                    target = action.target
+                )
+                emit(Result.ExchangeSuccess)
+            }
                 .catch {
                     Timber.tag(TAG).e(it, "Exchange failed: %s", action)
                     emit(Result.ExchangeFailure.RemoteError)
-                }
-                .onStart {
-                    emit(Result.ExchangeStarted)
                 }
         }
     }
