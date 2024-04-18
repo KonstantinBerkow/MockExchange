@@ -31,7 +31,7 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
             viewLifecycleOwner.repeatOnLifecycle(state = Lifecycle.State.STARTED) {
                 launch {
                     viewModel.state().collectLatest {
-                        timber.d("UIState: $it")
+                        timber.d("UIState: %s", it)
                         when (it) {
                             OverviewViewModel.UiState.Loading -> binding.displayLoading()
                             is OverviewViewModel.UiState.Loaded -> binding.displayLoaded(it)
@@ -41,7 +41,7 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
                 }
                 launch {
                     viewModel.singleTimeEvents().collectLatest {
-                        timber.d("single time event: $it")
+                        timber.d("single time event: %s", it)
                     }
                 }
             }
