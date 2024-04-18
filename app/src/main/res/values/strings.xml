@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">MockExchange</string>
+    <string name="my_balance_title">MY BALANCES</string>
+    <string name="exchange_title">CURRENCY EXCHANGE</string>
+    <string name="submit_exchange_button_title">SUBMIT</string>
+    <string name="unrecoverable_error_text">Something very bad happened while loading page. I didn\'t add recovery mechanism for such issue :(</string>
 </resources>
