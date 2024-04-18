@@ -98,15 +98,15 @@ val appModule = module {
 
     single<UserBalancesRepository> {
         InMemoryBalancesRepository(
-            linkedMapOf(Currency("EUR") to 100000u)
+            linkedMapOf(Currency.EUR to 100000u)
         )
     }
 
     single<FavoriteCurrenciesRepository> {
         FixedFavoriteCurrenciesRepository(
             currencies = listOf(
-                Currency("EUR"),
-                Currency("USD"),
+                Currency.EUR,
+                Currency.USD,
             )
         )
     }

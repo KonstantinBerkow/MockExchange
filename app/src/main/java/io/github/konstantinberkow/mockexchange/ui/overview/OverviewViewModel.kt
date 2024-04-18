@@ -49,7 +49,7 @@ class OverviewViewModel(
     @OptIn(ExperimentalCoroutinesApi::class)
     private val uiState =
         actions.consumeAsFlow()
-            .combine(balancesRepository.allBalances().map { it.toList() }, ToPair())
+            .combine(balancesRepository.allBalances().distinctUntilChanged(), ToPair())
             .flatMapLatest { (action, allBalances) ->
                 when (action) {
                     Action.Load ->
@@ -78,14 +78,28 @@ class OverviewViewModel(
                 initialValue = UiState.Loading
             )
 
-    private fun performLoad(allBalances: List<Balance>): Flow<Result> {
+    private fun performLoad(userBalances: Set<Balance>): Flow<Result> {
         return availableCurrenciesRepository.currencies()
             .distinctUntilChanged()
             .logError(TAG, "Failed loading available currencies!")
-            .map<Set<Currency>, Result> {
+            .map<Set<Currency>, Result> { currenciesSet ->
+                // sort with EUR and USD coming first
+                val allCurrencies = mutableListOf<Currency>().apply {
+                    add(Currency.EUR)
+                    add(Currency.USD)
+                }
+                currenciesSet.mapNotNullTo(allCurrencies) {
+                    it.takeIf { it != Currency.EUR && it != Currency.USD }
+                }
+                val balancesForAvailableCurrencies = allCurrencies.map { currency ->
+                    Balance(
+                        currency = currency,
+                        amount = userBalances.firstOrNull { it.currency == currency }?.amount ?: 0u
+                    )
+                }
                 Result.Loaded(
-                    currencies = it.toList(),
-                    favoriteBalances = allBalances
+                    currencies = allCurrencies,
+                    balances = balancesForAvailableCurrencies
                 )
             }
             .onStart {
@@ -141,7 +155,7 @@ class OverviewViewModel(
     }
 
     private fun commitExchange(
-        allBalances: List<Balance>,
+        allBalances: Set<Balance>,
         action: Action.CommitExchange
     ): Flow<Result> {
         val discharge = action.discharge
@@ -202,7 +216,7 @@ class OverviewViewModel(
 
                     is Result.Loaded -> Loaded(
                         availableCurrencies = result.currencies,
-                        userFunds = result.favoriteBalances,
+                        userFunds = result.balances,
                         performingExchange = false
                     )
                 }
@@ -222,7 +236,7 @@ class OverviewViewModel(
 
                     is Result.Loaded -> Loaded(
                         availableCurrencies = result.currencies,
-                        userFunds = result.favoriteBalances,
+                        userFunds = result.balances,
                         performingExchange = false
                     )
                 }
@@ -260,7 +274,7 @@ class OverviewViewModel(
 
                     is Result.Loaded -> Loaded(
                         availableCurrencies = result.currencies,
-                        userFunds = result.favoriteBalances,
+                        userFunds = result.balances,
                         performingExchange = performingExchange
                     )
                 }
@@ -294,7 +308,7 @@ class OverviewViewModel(
 
         data class Loaded(
             val currencies: List<Currency>,
-            val favoriteBalances: List<Balance>
+            val balances: List<Balance>
         ) : Result
 
         sealed interface SingleTime : Result
