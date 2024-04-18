@@ -26,16 +26,15 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(state = Lifecycle.State.STARTED) {
-                viewModel.state().collectLatest { uiState ->
-                    timber.d("UIState: $uiState")
+                launch {
+                    viewModel.state().collectLatest {
+                        timber.d("UIState: $it")
+                    }
                 }
-            }
-        }
-
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewLifecycleOwner.repeatOnLifecycle(state = Lifecycle.State.STARTED) {
-                viewModel.singleTimeEvents().collectLatest {
-                    timber.d("single time event: $it")
+                launch {
+                    viewModel.singleTimeEvents().collectLatest {
+                        timber.d("single time event: $it")
+                    }
                 }
             }
         }
