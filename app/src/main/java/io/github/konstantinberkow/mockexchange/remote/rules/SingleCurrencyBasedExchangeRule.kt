@@ -1,27 +1,22 @@
-package io.github.konstantinberkow.mockexchange.remote
+package io.github.konstantinberkow.mockexchange.remote.rules
 
 import io.github.konstantinberkow.mockexchange.entity.Currency
-import io.github.konstantinberkow.mockexchange.entity.rates.ExchangeRates
-import io.github.konstantinberkow.mockexchange.entity.toCents
-import io.github.konstantinberkow.mockexchange.entity.toUnit
+import io.github.konstantinberkow.mockexchange.entity.exchange_rule.ExchangeCurrenciesUseCase
+import io.github.konstantinberkow.mockexchange.entity.exchange_rule.ExchangeError
 
-class SingleCurrencyBasedStaticExchangeRates(
+class SingleCurrencyBasedExchangeRule(
     private val base: Currency,
     private val knownRates: Map<Currency, Double>
-) : ExchangeRates {
+) : ExchangeCurrenciesUseCase<UInt, ExchangeError> {
 
-    override val availableCurrencies: List<Currency> =
-        knownRates.keys.toList()
-
-    override fun convert(
+    override suspend fun convert(
         amount: UInt,
-        from: Currency,
-        to: Currency
-    ): UInt {
-        // specific case of identity conversion
-        // not sure, perhaps exception is more fitting in such case
+        to: Currency,
+        from: Currency
+    ): ExchangeCurrenciesUseCase.Result<UInt, ExchangeError> {
+        // identity conversion
         if (from == to) {
-            return amount
+            return ExchangeCurrenciesUseCase.Result.Failure(ExchangeError.IllegalConversion)
         }
 
         val ratioKey: Currency?
@@ -35,15 +30,19 @@ class SingleCurrencyBasedStaticExchangeRates(
         } else {
             // Example: we only know how to convert to and from EUR
             // we don't know how to convert from UAH to USD
-            ratioKey = null
-            performMultiplication = false
+            return ExchangeCurrenciesUseCase.Result.Failure(
+                ExchangeError.NoConversionBetweenCurrencies(
+                    source = from,
+                    target = to
+                )
+            )
         }
-        val ratio = ratioKey?.let { knownRates[it] }
+        val ratio = knownRates[ratioKey]
         requireNotNull(ratio) {
             "No conversion specified from '${from.identifier}' to '${to.identifier}'"
         }
 
-        val amountInCents = amount.toCents().toDouble()
+        val amountInCents = amount.toDouble()
         val convertedInCents = if (performMultiplication) {
             amountInCents * ratio
         } else {
@@ -53,6 +52,10 @@ class SingleCurrencyBasedStaticExchangeRates(
             "Conversion failed, got: '${convertedInCents}' in cents!"
         }
 
-        return convertedInCents.toUInt().toUnit()
+        return convertedInCents.toUInt().let {
+            ExchangeCurrenciesUseCase.Result.Success(
+                amountToDischarge = it
+            )
+        }
     }
 }
