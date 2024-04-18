@@ -3,7 +3,6 @@ package io.github.konstantinberkow.mockexchange.ui.overview
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.konstantinberkow.mockexchange.data.CurrenciesRepository
-import io.github.konstantinberkow.mockexchange.data.FavoriteCurrenciesRepository
 import io.github.konstantinberkow.mockexchange.data.UserBalancesRepository
 import io.github.konstantinberkow.mockexchange.entity.Balance
 import io.github.konstantinberkow.mockexchange.entity.Currency
@@ -37,7 +36,6 @@ class OverviewViewModel(
     private val exchangeCurrenciesRule: ExchangeCurrenciesUseCase<UInt, ExchangeError>,
     private val exchangeFeesRule: DischargeFeeUseCase<UInt>,
     private val balancesRepository: UserBalancesRepository,
-    private val favoriteCurrencies: FavoriteCurrenciesRepository,
 ) : ViewModel() {
 
     private val actions = Channel<Action>(capacity = Channel.RENDEZVOUS)
@@ -50,7 +48,8 @@ class OverviewViewModel(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val uiState =
-        actions.consumeAsFlow().combine(balancesRepository.allBalances(), ToPair())
+        actions.consumeAsFlow()
+            .combine(balancesRepository.allBalances().map { it.toList() }, ToPair())
             .flatMapLatest { (action, allBalances) ->
                 when (action) {
                     Action.Load ->
@@ -79,16 +78,16 @@ class OverviewViewModel(
                 initialValue = UiState.Loading
             )
 
-    private fun performLoad(allBalances: Set<Balance>): Flow<Result> {
+    private fun performLoad(allBalances: List<Balance>): Flow<Result> {
         return availableCurrenciesRepository.currencies()
             .distinctUntilChanged()
             .logError(TAG, "Failed loading available currencies!")
-            .combine(
-                favoriteCurrencies.currencies()
-                    .distinctUntilChanged()
-                    .logError(TAG, "Failed loading favorite currencies!"),
-                CombineAvailableAndFavoriteCurrenciesWithBalances(allBalances)
-            )
+            .map<Set<Currency>, Result> {
+                Result.Loaded(
+                    currencies = it.toList(),
+                    favoriteBalances = allBalances
+                )
+            }
             .onStart {
                 emit(Result.Loading)
             }
@@ -142,7 +141,7 @@ class OverviewViewModel(
     }
 
     private fun commitExchange(
-        allBalances: Set<Balance>,
+        allBalances: List<Balance>,
         action: Action.CommitExchange
     ): Flow<Result> {
         val discharge = action.discharge
@@ -330,20 +329,5 @@ class OverviewViewModel(
         }
 
         data object ExchangeSuccess : Result
-    }
-}
-
-private class CombineAvailableAndFavoriteCurrenciesWithBalances(
-    private val allBalances: Set<Balance>
-) : suspend (Set<Currency>, Set<Currency>) -> OverviewViewModel.Result {
-
-    override suspend fun invoke(
-        available: Set<Currency>,
-        favorite: Set<Currency>
-    ): OverviewViewModel.Result {
-        return OverviewViewModel.Result.Loaded(
-            currencies = available.toList(),
-            favoriteBalances = allBalances.filter { it.currency in favorite }
-        )
     }
 }

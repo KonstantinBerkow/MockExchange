@@ -117,7 +117,6 @@ val appModule = module {
             exchangeCurrenciesRule = get(),
             exchangeFeesRule = get(),
             balancesRepository = get(),
-            favoriteCurrencies = get(),
         )
     }
 }
