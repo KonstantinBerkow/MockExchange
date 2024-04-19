@@ -4,4 +4,8 @@
     <string name="exchange_title">Currency exchange</string>
     <string name="submit_exchange_button_title">Submit</string>
     <string name="unrecoverable_error_text">Something very bad happened while loading page. I didn\'t add recovery mechanism for such issue :(</string>
+    <string name="sell_title">Sell</string>
+    <string name="sell_input_hint">Enter amount to sell</string>
+    <string name="buy_title">Receive</string>
+    <string name="buy_input_hint">Enter amount to buy</string>
 </resources>

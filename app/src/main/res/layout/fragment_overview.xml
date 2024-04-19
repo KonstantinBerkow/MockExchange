@@ -7,14 +7,13 @@
 
     <TextView
         android:id="@+id/balances_title"
+        style="@style/CommonTitleStyle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentStart="true"
         android:layout_alignParentTop="true"
         android:layout_margin="12dp"
         android:text="@string/my_balance_title"
-        android:textAllCaps="true"
-        android:textSize="@dimen/title_text_size"
         android:visibility="gone"
         tools:visibility="visible" />
 
@@ -35,16 +34,106 @@
 
     <TextView
         android:id="@+id/exchange_title"
+        style="@style/CommonTitleStyle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_below="@+id/balances_recycler_view"
         android:layout_alignParentStart="true"
         android:layout_margin="12dp"
         android:text="@string/exchange_title"
-        android:textAllCaps="true"
-        android:textSize="@dimen/title_text_size"
         android:visibility="gone"
         tools:visibility="visible" />
+
+    <ImageView
+        android:id="@+id/sell_currency_image"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/exchange_title"
+        android:layout_alignParentStart="true"
+        android:layout_marginStart="8dp"
+        android:src="@drawable/ic_sell_currency" />
+
+    <TextView
+        android:id="@+id/sell_title"
+        style="@style/CommonLabelStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignTop="@id/sell_currency_image"
+        android:layout_alignBottom="@id/sell_currency_image"
+        android:layout_marginStart="4dp"
+        android:layout_toEndOf="@id/sell_currency_image"
+        android:text="@string/sell_title" />
+
+    <EditText
+        android:id="@+id/sell_edit_text"
+        style="@style/MoneyInputStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignTop="@id/sell_currency_image"
+        android:layout_alignBottom="@id/sell_currency_image"
+        android:layout_toStartOf="@+id/sell_dropdown"
+        android:layout_toEndOf="@+id/sell_title"
+        android:background="@android:color/transparent"
+        android:hint="@string/sell_input_hint"
+        tools:ignore="Autofill" />
+
+    <Spinner
+        android:id="@+id/sell_dropdown"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:layout_alignTop="@id/sell_currency_image"
+        android:layout_alignBottom="@id/sell_currency_image"
+        android:layout_alignParentEnd="true" />
+
+    <View
+        android:id="@+id/exchange_divider"
+        android:layout_width="wrap_content"
+        android:layout_height="1dp"
+        android:layout_below="@+id/sell_currency_image"
+        android:layout_alignStart="@id/sell_title"
+        android:layout_alignParentEnd="true"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="18dp"
+        android:layout_marginBottom="8dp"
+        android:background="@color/divider_color" />
+
+    <ImageView
+        android:id="@+id/buy_currency_image"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/exchange_divider"
+        android:layout_alignStart="@id/sell_currency_image"
+        android:src="@drawable/ic_buy_currency" />
+
+    <TextView
+        android:id="@+id/buy_title"
+        style="@style/CommonLabelStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignStart="@id/sell_title"
+        android:layout_alignTop="@id/buy_currency_image"
+        android:layout_alignBottom="@id/buy_currency_image"
+        android:text="@string/buy_title" />
+
+    <EditText
+        android:id="@+id/buy_edit_text"
+        style="@style/MoneyInputStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignTop="@id/buy_currency_image"
+        android:layout_alignBottom="@id/buy_currency_image"
+        android:layout_toStartOf="@+id/buy_dropdown"
+        android:layout_toEndOf="@+id/buy_title"
+        android:hint="@string/buy_input_hint"
+        tools:ignore="Autofill" />
+
+    <Spinner
+        android:id="@+id/buy_dropdown"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:layout_alignTop="@id/buy_currency_image"
+        android:layout_alignBottom="@id/buy_currency_image"
+        android:layout_alignParentEnd="true" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/submit_exchange_button"
