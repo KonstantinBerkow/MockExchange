@@ -111,10 +111,10 @@ val appModule = module {
         SwitchingDischargeFeeUseCase(
             signal = historyRepo.exchangesCount(),
             delegate = { exchangesCount ->
-                if (exchangesCount >= 5u) {
+                if (exchangesCount < 5u) {
                     NoFeeDischargeUseCase()
                 } else {
-                    StaticFeeUseCase(percent = 0.05F)
+                    StaticFeeUseCase(percent = 0.007F)
                 }
             },
             scope = GlobalScope
