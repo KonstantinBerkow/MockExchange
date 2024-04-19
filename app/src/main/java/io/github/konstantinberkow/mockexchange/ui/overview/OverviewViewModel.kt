@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -132,13 +133,16 @@ class OverviewViewModel(
             )
         )
 
-    fun commitExchange(
-        removeAmount: UInt,
-        from: Currency,
-        transferAmount: UInt,
-        to: Currency
-    ) {
+    fun commitExchange() {
         viewModelScope.launch {
+            val currentState = uiState.first()
+            Timber.tag(TAG).d("commitExchange")
+            val removeAmount = currentState.dischargeFromSource ?: return@launch
+            val from = currentState.selectedSourceCurrency
+            val transferAmount = currentState.targetTransfer ?: return@launch
+            val to = currentState.selectedTargetCurrency
+            Timber.tag(TAG).d("commitExchangec do")
+
             oneShotEvents.send(Event.ExchangeStarted)
 
             val feeResult = exchangeFeesRule.calculateFeeForDischarge(

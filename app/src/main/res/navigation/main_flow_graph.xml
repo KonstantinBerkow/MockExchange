@@ -9,19 +9,35 @@
         android:id="@+id/overview_fragment"
         android:name="io.github.konstantinberkow.mockexchange.ui.overview.OverviewFragment"
         tools:layout="@layout/fragment_overview">
+
         <action
-            android:id="@+id/action_exchange_fragment_to_balance_fragment"
-            app:destination="@id/balance_fragment"
-            app:enterAnim="@android:anim/fade_in"
-            app:exitAnim="@android:anim/fade_out"
-            app:popEnterAnim="@android:anim/fade_in"
-            app:popExitAnim="@android:anim/fade_out"
-            app:popUpTo="@id/overview_fragment" />
+            android:id="@+id/action_overview_fragment_to_transaction_alert_dialog"
+            app:destination="@id/transaction_alert_dialog" />
     </fragment>
 
-    <fragment
-        android:id="@+id/balance_fragment"
-        android:name="io.github.konstantinberkow.mockexchange.ui.balance.BalanceFragment"
-        tools:layout="@layout/fragment_balance" />
+    <dialog
+        android:id="@+id/transaction_alert_dialog"
+        android:name="io.github.konstantinberkow.mockexchange.ui.overview.TransactionDialog"
+        tools:layout="@android:layout/select_dialog_singlechoice">
+
+        <argument
+            android:name="discharge_amount"
+            app:argType="long" />
+        <argument
+            android:name="target_amount"
+            app:argType="long" />
+        <argument
+            android:name="fee_amount"
+            app:argType="long" />
+        <argument
+            android:name="source"
+            app:argType="string" />
+        <argument
+            android:name="target"
+            app:argType="string" />
+        <argument
+            android:name="success"
+            app:argType="boolean" />
+    </dialog>
 
 </navigation>

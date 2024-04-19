@@ -8,4 +8,6 @@
     <string name="sell_input_hint">Enter amount to sell</string>
     <string name="buy_title">Receive</string>
     <string name="please_provide_valid_number">Please provide valid number</string>
+    <string name="success_exchange_template">You have converted %1$s %2$s to %3$s %4$s. Commission fee: %5$s %2$s.</string>
+    <string name="failure_exchange_template">You don\'t have enough funds to convert from %1$s %2$s to %3$s %4$s. Commission fee: %5$s %2$s.</string>
 </resources>

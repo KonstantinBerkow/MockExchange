@@ -10,6 +10,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.AsyncDifferConfig
 import androidx.recyclerview.widget.ListAdapter
 import io.github.konstantinberkow.mockexchange.R
@@ -20,6 +21,7 @@ import io.github.konstantinberkow.mockexchange.flow_extensions.logEach
 import io.github.konstantinberkow.mockexchange.ui.util.AdapterViewSelectionEvent
 import io.github.konstantinberkow.mockexchange.ui.util.DecimalMaskTextWatcher
 import io.github.konstantinberkow.mockexchange.ui.util.ParseTextInput
+import io.github.konstantinberkow.mockexchange.ui.util.clicks
 import io.github.konstantinberkow.mockexchange.ui.util.editorActionEvents
 import io.github.konstantinberkow.mockexchange.ui.util.hideSoftKeyboard
 import io.github.konstantinberkow.mockexchange.ui.util.onItemSelectedFlow
@@ -60,9 +62,18 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
                     viewModel.oneShotEvents().collectLatest { event ->
                         Timber.tag(TAG).d("single time event: %s", event)
                         when (event) {
-                            OverviewViewModel.Event.ExchangeStarted -> true
-                            is OverviewViewModel.Event.ExchangeSuccess -> false
-                            is OverviewViewModel.Event.NotEnoughFunds -> false
+                            OverviewViewModel.Event.ExchangeStarted ->
+                                true
+
+                            is OverviewViewModel.Event.ExchangeSuccess -> {
+                                alertDialog(true, event.transaction)
+                                false
+                            }
+
+                            is OverviewViewModel.Event.NotEnoughFunds -> {
+                                alertDialog(false, event.transaction)
+                                false
+                            }
                         }.let {
                             binding.disableInputs(it)
                         }
@@ -103,8 +114,29 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
                             viewModel.updateTargetCurrency(it)
                         }
                 }
+                launch {
+                    binding.submitExchangeButton.clicks()
+                        .collectLatest {
+                            viewModel.commitExchange()
+                        }
+                }
             }
         }
+    }
+
+    private fun alertDialog(success: Boolean, transaction: OverviewViewModel.Event.Transaction) {
+        findNavController()
+            .navigate(
+                R.id.action_overview_fragment_to_transaction_alert_dialog,
+                TransactionDialog.arguments(
+                    success = success,
+                    dischargeAmount = transaction.amount,
+                    feeAmount = transaction.fee,
+                    from = transaction.from,
+                    converted = transaction.converted,
+                    to = transaction.to,
+                )
+            )
     }
 
     override fun onDestroyView() {
