@@ -3,7 +3,6 @@ package io.github.konstantinberkow.mockexchange.ui.overview
 import android.os.Bundle
 import android.view.View
 import android.view.inputmethod.EditorInfo
-import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Spinner
 import android.widget.Toast
@@ -26,9 +25,11 @@ import io.github.konstantinberkow.mockexchange.ui.util.hideSoftKeyboard
 import io.github.konstantinberkow.mockexchange.ui.util.onItemSelectedFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import timber.log.Timber
+import java.text.NumberFormat
 
 private const val TAG = "OverviewFragment"
 
@@ -47,29 +48,24 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
 
         binding.sellEditText.addTextChangedListener(DecimalMaskTextWatcher())
 
-        binding.sellDropdown.onItemSelectedFlow()
-            .map(ConvertToVMSelection(type = OverviewViewModel.Action.SelectedCurrency.Type.Sell))
-
-        binding.buyDropdown.onItemSelectedFlow()
-            .map(ConvertToVMSelection(type = OverviewViewModel.Action.SelectedCurrency.Type.Buy))
-
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(state = Lifecycle.State.STARTED) {
-                val viewModelConsumer = viewModel::accept
-
                 launch {
-                    viewModel.state().collectLatest {
-                        Timber.tag(TAG).d("UIState: %s", it)
-                        when (it) {
-                            OverviewViewModel.UiState.Loading -> binding.displayLoading()
-                            is OverviewViewModel.UiState.Loaded -> binding.displayLoaded(it)
-                            OverviewViewModel.UiState.LoadFailed -> binding.displayError()
-                        }
+                    viewModel.uiState.collectLatest {
+                        Timber.tag(TAG).d("UiState: %s", it)
+                        binding.render(it)
                     }
                 }
                 launch {
-                    viewModel.singleTimeEvents().collectLatest {
-                        Timber.tag(TAG).d("single time event: %s", it)
+                    viewModel.oneShotEvents().collectLatest { event ->
+                        Timber.tag(TAG).d("single time event: %s", event)
+                        when (event) {
+                            OverviewViewModel.Event.ExchangeStarted -> true
+                            is OverviewViewModel.Event.ExchangeSuccess -> false
+                            is OverviewViewModel.Event.NotEnoughFunds -> false
+                        }.let {
+                            binding.disableInputs(it)
+                        }
                     }
                 }
                 launch {
@@ -88,24 +84,41 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
                                     Toast.LENGTH_SHORT
                                 ).show()
                             } else {
-                                binding.sellDropdown.performClick()
                                 binding.root.hideSoftKeyboard()
                             }
+                            viewModel.updateDischargeAmount(parsedNumber)
+                        }
+                }
+                launch {
+                    binding.sellDropdown.onItemSelectedFlow()
+                        .mapNotNull(ConvertToCurrency)
+                        .collectLatest {
+                            viewModel.updateSourceCurrency(it)
+                        }
+                }
+                launch {
+                    binding.buyDropdown.onItemSelectedFlow()
+                        .mapNotNull(ConvertToCurrency)
+                        .collectLatest {
+                            viewModel.updateTargetCurrency(it)
                         }
                 }
             }
         }
     }
 
-    override fun onStart() {
-        super.onStart()
-        viewModel.accept(OverviewViewModel.Action.Load)
-    }
-
     override fun onDestroyView() {
         binding = null
 
         super.onDestroyView()
+    }
+
+    private fun FragmentOverviewBinding.render(state: OverviewViewModel.UiState) {
+        if (state.loading) {
+            displayLoading()
+        } else {
+            displayLoaded(state)
+        }
     }
 
     private fun FragmentOverviewBinding.changeVisibility(
@@ -150,13 +163,19 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
         )
     }
 
-    private fun FragmentOverviewBinding.displayLoaded(state: OverviewViewModel.UiState.Loaded) {
+    private fun FragmentOverviewBinding.displayLoaded(state: OverviewViewModel.UiState) {
         setupBalancesAdapterIfRequired().run {
-            submitList(state.userFunds)
+            submitList(state.balancesList)
         }
 
-        buyDropdown.setupBuySpinnerIfRequired(state.availableCurrencies)
-        sellDropdown.setupBuySpinnerIfRequired(state.availableCurrencies)
+        sellDropdown.setupCurrenciesSpinnerIfRequired(
+            state.availableSourceCurrencies,
+            state.selectedSourceCurrency
+        )
+        buyDropdown.setupCurrenciesSpinnerIfRequired(
+            state.availableTargetCurrencies,
+            state.selectedTargetCurrency
+        )
 
         changeVisibility(
             showLoader = false,
@@ -164,8 +183,15 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
             showUnrecoverableError = false,
         )
 
+        state.targetTransfer?.let {
+            val numberInCents = it.toDouble() / 100
+            buyDisplayText.setText(NumberFormat.getNumberInstance().format(numberInCents))
+        }
+    }
+
+    private fun FragmentOverviewBinding.disableInputs(performingExchange: Boolean) {
         // disable button and inputs while exchange happens
-        val inputsEnabled = !state.performingExchange
+        val inputsEnabled = !performingExchange
         sellEditText.isEnabled = inputsEnabled
         sellDropdown.isEnabled = inputsEnabled
         buyDropdown.isEnabled = inputsEnabled
@@ -187,9 +213,11 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
     }
 
     @Suppress("UNCHECKED_CAST")
-    private fun Spinner.setupBuySpinnerIfRequired(
-        currencies: List<Currency>
+    private fun Spinner.setupCurrenciesSpinnerIfRequired(
+        currencies: List<Currency>,
+        selected: Currency
     ) {
+
         val oldAdapter = adapter as? ArrayAdapter<String>
         if (oldAdapter == null) {
             ArrayAdapter(
@@ -204,27 +232,17 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
             }
         } else {
             if (oldAdapter.contentShouldChange(currencies)) {
-                val selectedCurrency = this.selectedItemPosition
-                    .takeIf { it != AdapterView.INVALID_POSITION }
-                    ?.let { oldAdapter.getItem(it) }
-                Timber.tag(TAG).d("Selected currency: %s", selectedCurrency)
-                val newList = currencies.map { it.identifier }
-                val newSelectedPosition = selectedCurrency?.let {
-                    newList.indexOf(it)
-                }
-                Timber.tag(TAG).d("Update position: %d", newSelectedPosition)
-
                 Timber.tag(TAG)
                     .d("Change adapter for spinner: %s", resources.getResourceEntryName(id))
                 oldAdapter.setNotifyOnChange(false)
                 oldAdapter.clear()
-                oldAdapter.addAll(newList)
-                if (newSelectedPosition != null && newSelectedPosition >= 0) {
-                    setSelection(newSelectedPosition)
-                }
+                oldAdapter.addAll(currencies.map { it.identifier })
                 oldAdapter.notifyDataSetChanged()
             }
         }
+
+        val selectionPosition = currencies.indexOf(selected)
+        setSelection(selectionPosition, false)
     }
 
     private fun ArrayAdapter<String>.contentShouldChange(
@@ -247,15 +265,10 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
     }
 }
 
-private class ConvertToVMSelection(
-    private val type: OverviewViewModel.Action.SelectedCurrency.Type
-) : suspend (AdapterViewSelectionEvent) -> OverviewViewModel.Action.SelectedCurrency {
+private object ConvertToCurrency : suspend (AdapterViewSelectionEvent) -> Currency? {
 
     override suspend fun invoke(selection: AdapterViewSelectionEvent) =
-        OverviewViewModel.Action.SelectedCurrency(
-            type = type,
-            currency = (selection.selectedValue as? String)?.let {
-                Currency(it)
-            }
-        )
+        (selection.selectedValue as? String)?.let {
+            Currency(it)
+        }
 }

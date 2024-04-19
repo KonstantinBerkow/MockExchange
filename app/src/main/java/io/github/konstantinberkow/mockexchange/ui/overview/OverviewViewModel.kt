@@ -9,24 +9,16 @@ import io.github.konstantinberkow.mockexchange.entity.Currency
 import io.github.konstantinberkow.mockexchange.entity.exchange_rule.DischargeFeeUseCase
 import io.github.konstantinberkow.mockexchange.entity.exchange_rule.ExchangeCurrenciesUseCase
 import io.github.konstantinberkow.mockexchange.entity.exchange_rule.ExchangeError
-import io.github.konstantinberkow.mockexchange.flow_extensions.ToPair
-import io.github.konstantinberkow.mockexchange.flow_extensions.logEach
-import io.github.konstantinberkow.mockexchange.flow_extensions.logError
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
@@ -39,334 +31,185 @@ class OverviewViewModel(
     private val balancesRepository: UserBalancesRepository,
 ) : ViewModel() {
 
-    private val actions = Channel<Action>(capacity = Channel.RENDEZVOUS)
+    private val selectedSourceCurrency = MutableStateFlow(value = Currency.EUR)
 
-    private val singleTimeResults = Channel<Result.SingleTime>(capacity = Channel.RENDEZVOUS)
+    private val selectedTargetCurrency = MutableStateFlow(value = Currency.USD)
 
-    fun singleTimeEvents(): Flow<Result.SingleTime> {
-        return singleTimeResults.receiveAsFlow()
-    }
+    private val dischargeAmount = MutableStateFlow<UInt?>(value = null)
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val uiState =
-        actions.receiveAsFlow()
-            .logEach(TAG, "actions.onEach: %s")
-            .combine(
-                balancesRepository.allBalances().logEach(TAG, "allBalances.onEach: %s"),
-                ToPair()
-            )
-            .logEach(TAG, "combined.onEach: %s")
-            .flatMapLatest { (action, allBalances) ->
-                when (action) {
-                    Action.Load ->
-                        performLoad(allBalances)
-                            .logEach(TAG, "performLoad.onEach: %s")
-
-                    is Action.EstimateExchange ->
-                        estimateExchange(action)
-                            .logEach(TAG, "estimateExchange.onEach: %s")
-
-                    is Action.CommitExchange ->
-                        commitExchange(allBalances, action)
-                            .logEach(TAG, "commitExchange.onEach: %s")
-                }
-            }
-            .scan<Result, UiState>(UiState.Loading) { oldState, result ->
-                if (result is Result.SingleTime) {
-                    singleTimeResults.send(result)
-                }
-                oldState.mergeWithResult(result)
-            }
-            .catch {
-                Timber.tag(TAG).e(it, "Failed combining actions into state")
-                emit(UiState.LoadFailed)
-            }
-            .logEach(TAG, "uiState.onEach: %s")
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5000),
-                initialValue = UiState.Loading
-            )
-
-    private fun performLoad(userBalances: Set<Balance>): Flow<Result> {
-        return availableCurrenciesRepository.currencies()
-            .distinctUntilChanged()
-            .logError(TAG, "Failed loading available currencies!")
-            .map<Set<Currency>, Result> { currenciesSet ->
-                // sort with EUR and USD coming first
-                val allCurrencies = mutableListOf<Currency>().apply {
-                    add(Currency.EUR)
-                    add(Currency.USD)
-                }
-                currenciesSet.mapNotNullTo(allCurrencies) {
-                    it.takeIf { it != Currency.EUR && it != Currency.USD }
-                }
-                val balancesForAvailableCurrencies = allCurrencies.map { currency ->
-                    Balance(
-                        currency = currency,
-                        amount = userBalances.firstOrNull { it.currency == currency }?.amount ?: 0u
-                    )
-                }
-                Result.Loaded(
-                    currencies = allCurrencies,
-                    balances = balancesForAvailableCurrencies
-                )
-            }
-            .onStart {
-                emit(Result.Loading)
-            }
-            .catch {
-                Timber.tag(TAG).e(it, "Failed to load data for overview")
-                emit(Result.LoadFailed)
-            }
-    }
-
-    private suspend fun estimateExchange(action: Action.EstimateExchange): Flow<Result> {
-        val requestedAmount = action.amount
-        val requestCurrency = action.target
-        val sourceCurrency = action.source
-        val conversion = exchangeCurrenciesRule.convert(
-            amount = requestedAmount,
-            to = requestCurrency,
-            from = sourceCurrency,
-        )
-        val result = when (conversion) {
-            is ExchangeCurrenciesUseCase.Result.Success -> {
-                val dischargeAmount = conversion.amountToDischarge
-                val feeResult = exchangeFeesRule.calculateFeeForDischarge(
-                    amount = dischargeAmount,
-                    currency = sourceCurrency
-                )
-                val fee = when (feeResult) {
-                    is DischargeFeeUseCase.Result.Fee -> feeResult.amount
-                    DischargeFeeUseCase.Result.Free -> 0u
-                }
-                Result.ExchangeEstimation(
-                    amount = dischargeAmount,
-                    fee = fee,
-                    from = sourceCurrency,
-                    converted = requestedAmount,
-                    to = requestCurrency,
-                )
-            }
-
-            is ExchangeCurrenciesUseCase.Result.Failure -> {
-                when (conversion.reason) {
-                    is ExchangeError.NoConversionBetweenCurrencies,
-                    ExchangeError.IllegalConversion ->
-                        Result.NoConversionAvailable(
-                            source = sourceCurrency,
-                            target = requestCurrency,
-                        )
-                }
-            }
-        }
-        return flowOf(result)
-    }
-
-    private fun commitExchange(
-        allBalances: Set<Balance>,
-        action: Action.CommitExchange
-    ): Flow<Result> {
-        val discharge = action.discharge
-        val sourceCurrency = action.source
-        val sourceBalance = allBalances.firstOrNull { it.currency == sourceCurrency }
-        val balanceAmount = sourceBalance?.amount ?: 0u
-        return if (balanceAmount < discharge) {
-            flowOf(
-                Result.ExchangeFailure.NotEnoughFunds(exchange = action)
-            )
-        } else {
-            flow {
-                emit(Result.ExchangeStarted)
-                balancesRepository.performExchange(
-                    discharge = discharge,
-                    source = sourceCurrency,
-                    addition = action.requestAmount,
-                    target = action.target
-                )
-                emit(Result.ExchangeSuccess)
-            }
-                .catch {
-                    Timber.tag(TAG).e(it, "Exchange failed: %s", action)
-                    emit(Result.ExchangeFailure.RemoteError)
-                }
-        }
-    }
-
-    fun state(): Flow<UiState> {
-        return uiState
-    }
-
-    fun accept(action: Action) {
+    fun updateSourceCurrency(currency: Currency) {
+        Timber.tag(TAG).d("updateSourceCurrency to %s", currency)
         viewModelScope.launch {
-            actions.send(action)
+            selectedSourceCurrency.emit(currency)
         }
     }
 
-    override fun onCleared() {
-        super.onCleared()
-        actions.close()
-        singleTimeResults.close()
-    }
-
-    sealed interface UiState {
-
-        fun mergeWithResult(result: Result): UiState
-
-        data object Loading : UiState {
-
-            override fun mergeWithResult(result: Result): UiState {
-                return when (result) {
-                    Result.Loading,
-                    Result.LoadFailed,
-                    is Result.SingleTime,
-                    Result.ExchangeStarted,
-                    Result.ExchangeSuccess -> this
-
-                    is Result.Loaded -> Loaded(
-                        availableCurrencies = result.currencies,
-                        userFunds = result.balances,
-                        performingExchange = false
-                    )
-                }
-            }
-        }
-
-        data object LoadFailed : UiState {
-
-            override fun mergeWithResult(result: Result): UiState {
-                return when (result) {
-                    Result.Loading -> Loading
-
-                    Result.LoadFailed,
-                    is Result.SingleTime,
-                    Result.ExchangeStarted,
-                    Result.ExchangeSuccess -> this
-
-                    is Result.Loaded -> Loaded(
-                        availableCurrencies = result.currencies,
-                        userFunds = result.balances,
-                        performingExchange = false
-                    )
-                }
-            }
-        }
-
-        /**
-         * @param availableCurrencies [List] of supported currencies
-         * @param userFunds [List] of user's balances
-         */
-        data class Loaded(
-            val availableCurrencies: List<Currency>,
-            val userFunds: List<Balance>,
-            val performingExchange: Boolean
-        ) : UiState {
-
-            override fun mergeWithResult(result: Result): UiState {
-                return when (result) {
-                    Result.LoadFailed -> LoadFailed
-
-                    Result.Loading,
-                    is Result.ExchangeEstimation,
-                    is Result.NoConversionAvailable -> this
-
-                    Result.ExchangeStarted ->
-                        copy(
-                            performingExchange = true
-                        )
-
-                    is Result.ExchangeFailure,
-                    Result.ExchangeSuccess ->
-                        copy(
-                            performingExchange = false
-                        )
-
-                    is Result.Loaded -> Loaded(
-                        availableCurrencies = result.currencies,
-                        userFunds = result.balances,
-                        performingExchange = performingExchange
-                    )
-                }
-            }
+    fun updateTargetCurrency(currency: Currency) {
+        Timber.tag(TAG).d("updateTargetCurrency to %s", currency)
+        viewModelScope.launch {
+            selectedTargetCurrency.emit(currency)
         }
     }
 
-    sealed interface Action {
+    fun updateDischargeAmount(amount: UInt?) {
+        Timber.tag(TAG).d("updateDischargeAmount to %s", amount)
+        dischargeAmount.update { amount }
+    }
 
-        data object Load : Action
+    private val oneShotEvents = Channel<Event>(capacity = Channel.RENDEZVOUS)
 
-        data class SelectedCurrency(
-            val type: Type,
-            val currency: Currency?
-        ) : Action {
+    fun oneShotEvents(): Flow<Event> {
+        return oneShotEvents.receiveAsFlow()
+    }
 
-            enum class Type {
-                Sell,
-                Buy
+    val uiState = combine(
+        availableCurrenciesRepository.currencies().distinctUntilChanged(),
+        balancesRepository.allBalances().distinctUntilChanged(),
+        selectedSourceCurrency,
+        selectedTargetCurrency,
+        dischargeAmount,
+    ) { availableCurrencies, balances, sourceCurrency, targetCurrency, dischargeAmount ->
+        // sort with EUR and USD coming first
+        val allCurrenciesSorted = mutableListOf<Currency>().apply {
+            add(Currency.EUR)
+            add(Currency.USD)
+            availableCurrencies.mapNotNullTo(this) {
+                it.takeIf { it != Currency.EUR && it != Currency.USD }
             }
         }
 
-        data class ParsedInput(
-            val sellAmount: UInt?,
-        ) : Action
+        val estimatedTransfer = dischargeAmount?.let {
+            val res = exchangeCurrenciesRule.convert(
+                amount = it,
+                to = targetCurrency,
+                from = sourceCurrency
+            )
+            when (res) {
+                is ExchangeCurrenciesUseCase.Result.Failure -> null
+                is ExchangeCurrenciesUseCase.Result.Success -> res.amountToDischarge
+            }
+        }
 
-        data class EstimateExchange(
-            val amount: UInt,
-            val source: Currency,
-            val target: Currency,
-        ) : Action
+        UiState(
+            availableSourceCurrencies = allCurrenciesSorted - targetCurrency,
+            availableTargetCurrencies = allCurrenciesSorted - sourceCurrency,
+            balances = balances,
+            selectedSourceCurrency = sourceCurrency,
+            selectedTargetCurrency = targetCurrency,
+            dischargeFromSource = dischargeAmount,
+            targetTransfer = estimatedTransfer,
+        )
+    }
+        .onEach { state ->
+            Timber.tag(TAG).d("[UI_STATE]")
+            Timber.tag(TAG).d(
+                "Source currencies: %s and %d total",
+                state.availableSourceCurrencies.take(5).map { it.identifier },
+                state.availableSourceCurrencies.size
+            )
+            Timber.tag(TAG).d(
+                "Target currencies: %s and %d total",
+                state.availableTargetCurrencies.take(5).map { it.identifier },
+                state.availableTargetCurrencies.size
+            )
+            Timber.tag(TAG).d("Selected source: %s", state.selectedSourceCurrency.identifier)
+            Timber.tag(TAG).d("Selected target: %s", state.selectedTargetCurrency.identifier)
+            Timber.tag(TAG).d("Discharge amount: %s", state.dischargeFromSource)
+            Timber.tag(TAG).d("Target amount: %s", state.targetTransfer)
+            Timber.tag(TAG).d("[UI_STATE]")
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = UiState(
+                availableSourceCurrencies = emptyList(),
+                availableTargetCurrencies = emptyList(),
+                balances = emptyMap(),
+                selectedSourceCurrency = Currency.EUR,
+                selectedTargetCurrency = Currency.USD,
+                dischargeFromSource = null,
+                targetTransfer = null
+            )
+        )
 
-        data class CommitExchange(
-            val discharge: UInt,
-            val source: Currency,
-            val requestAmount: UInt,
-            val target: Currency,
-        ) : Action
+    fun commitExchange(
+        removeAmount: UInt,
+        from: Currency,
+        transferAmount: UInt,
+        to: Currency
+    ) {
+        viewModelScope.launch {
+            oneShotEvents.send(Event.ExchangeStarted)
+
+            val feeResult = exchangeFeesRule.calculateFeeForDischarge(
+                amount = removeAmount,
+                currency = from
+            )
+            val feeAmount = when (feeResult) {
+                is DischargeFeeUseCase.Result.Fee -> feeResult.amount
+                DischargeFeeUseCase.Result.Free -> 0u
+            }
+
+            val res = balancesRepository.performExchange(
+                discharge = removeAmount + feeAmount,
+                source = from,
+                addition = transferAmount,
+                target = to
+            )
+            val transaction = Event.Transaction(
+                amount = removeAmount,
+                fee = feeAmount,
+                from = from,
+                converted = transferAmount,
+                to = to,
+            )
+            val event = when (res) {
+                UserBalancesRepository.Result.NotEnoughFunds ->
+                    Event.NotEnoughFunds(transaction)
+
+                UserBalancesRepository.Result.Success ->
+                    Event.ExchangeSuccess(transaction)
+            }
+            oneShotEvents.send(event)
+        }
     }
 
-    sealed interface Result {
+    data class UiState(
+        val availableSourceCurrencies: List<Currency>,
+        val availableTargetCurrencies: List<Currency>,
+        val balances: Map<Currency, UInt>,
+        val selectedSourceCurrency: Currency,
+        val selectedTargetCurrency: Currency,
+        val dischargeFromSource: UInt?,
+        val targetTransfer: UInt?,
+    ) {
 
-        data object Loading : Result
+        val loading: Boolean
+            get() = balances.isEmpty()
 
-        data object LoadFailed : Result
+        val balancesList: List<Balance> by lazy(mode = LazyThreadSafetyMode.NONE) {
+            balances.map { Balance(it.key, it.value) }
+        }
+    }
 
-        data class Loaded(
-            val currencies: List<Currency>,
-            val balances: List<Balance>
-        ) : Result
+    sealed interface Event {
 
-        sealed interface SingleTime : Result
+        data object ExchangeStarted : Event
 
-        /**
-         * @param amount how much money wee want to convert, in [from] currency
-         * @param fee fee (if applicable) for this conversion, in [from] currency
-         * @param converted how much user will receive on another account in [to] currency
-         */
-        data class ExchangeEstimation(
+        data class NotEnoughFunds(
+            val transaction: Transaction
+        ) : Event
+
+        data class ExchangeSuccess(
+            val transaction: Transaction
+        ) : Event
+
+        data class Transaction(
             val amount: UInt,
             val fee: UInt,
             val from: Currency,
             val converted: UInt,
             val to: Currency,
-        ) : SingleTime
-
-        data class NoConversionAvailable(
-            val source: Currency,
-            val target: Currency
-        ) : SingleTime
-
-        data object ExchangeStarted : Result
-
-        sealed interface ExchangeFailure : SingleTime {
-
-            data object RemoteError : ExchangeFailure
-
-            data class NotEnoughFunds(
-                val exchange: Action.CommitExchange
-            ) : ExchangeFailure
-        }
-
-        data object ExchangeSuccess : Result
+        )
     }
 }
