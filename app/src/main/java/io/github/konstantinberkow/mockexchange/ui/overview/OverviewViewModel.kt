@@ -49,7 +49,7 @@ class OverviewViewModel(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val uiState =
-        actions.consumeAsFlow()
+        actions.receiveAsFlow()
             .combine(balancesRepository.allBalances().distinctUntilChanged(), ToPair())
             .flatMapLatest { (action, allBalances) ->
                 when (action) {

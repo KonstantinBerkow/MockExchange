@@ -50,22 +50,46 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
         viewModel.accept(OverviewViewModel.Action.Load)
     }
 
+    private fun FragmentOverviewBinding.changeVisibility(
+        showLoader: Boolean,
+        showContent: Boolean,
+        showUnrecoverableError: Boolean,
+    ) {
+        val contentVisibility = View.VISIBLE.takeIf { showContent } ?: View.GONE
+        balancesTitle.visibility = contentVisibility
+        balancesRecyclerView.visibility = contentVisibility
+        exchangeTitle.visibility = contentVisibility
+        sellCurrencyImage.visibility = contentVisibility
+        sellLabel.visibility = contentVisibility
+        sellEditText.visibility = contentVisibility
+        sellDropdown.visibility = contentVisibility
+        exchangeDivider.visibility = contentVisibility
+        buyCurrencyImage.visibility = contentVisibility
+        buyLabel.visibility = contentVisibility
+        buyEditText.visibility = contentVisibility
+        buyDropdown.visibility = contentVisibility
+        submitExchangeButton.visibility = contentVisibility
+
+        pageLoadingProgressBar.visibility = View.VISIBLE.takeIf { showLoader } ?: View.GONE
+
+        unrecoverableErrorHappenedTitle.visibility =
+            View.VISIBLE.takeIf { showUnrecoverableError } ?: View.GONE
+    }
+
     private fun FragmentOverviewBinding.displayLoading() {
-        balancesTitle.visibility = View.GONE
-        balancesRecyclerView.visibility = View.GONE
-        exchangeTitle.visibility = View.GONE
-        submitExchangeButton.visibility = View.GONE
-        pageLoadingProgressBar.visibility = View.VISIBLE
-        unrecoverableErrorHappenedTitle.visibility = View.GONE
+        changeVisibility(
+            showLoader = true,
+            showContent = false,
+            showUnrecoverableError = false,
+        )
     }
 
     private fun FragmentOverviewBinding.displayError() {
-        balancesTitle.visibility = View.GONE
-        balancesRecyclerView.visibility = View.GONE
-        exchangeTitle.visibility = View.GONE
-        submitExchangeButton.visibility = View.GONE
-        pageLoadingProgressBar.visibility = View.GONE
-        unrecoverableErrorHappenedTitle.visibility = View.VISIBLE
+        changeVisibility(
+            showLoader = false,
+            showContent = false,
+            showUnrecoverableError = true,
+        )
     }
 
     private var balancesAdapter: ListAdapter<Balance, BalanceBriefViewHolder>? = null
@@ -93,14 +117,18 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
 
         adapter.submitList(state.userFunds)
 
-        balancesTitle.visibility = View.VISIBLE
-        balancesRecyclerView.visibility = View.VISIBLE
-        exchangeTitle.visibility = View.VISIBLE
-        submitExchangeButton.visibility = View.VISIBLE
-        pageLoadingProgressBar.visibility = View.GONE
-        unrecoverableErrorHappenedTitle.visibility = View.GONE
+        changeVisibility(
+            showLoader = false,
+            showContent = true,
+            showUnrecoverableError = false,
+        )
 
-        // disable button while exchange happens
-        submitExchangeButton.isEnabled = !state.performingExchange
+        // disable button and inputs while exchange happens
+        val inputsEnabled = !state.performingExchange
+        buyEditText.isEnabled = inputsEnabled
+        buyDropdown.isEnabled = inputsEnabled
+        sellEditText.isEnabled = inputsEnabled
+        sellDropdown.isEnabled = inputsEnabled
+        submitExchangeButton.isEnabled = inputsEnabled
     }
 }
