@@ -1,30 +1,20 @@
 package io.github.konstantinberkow.mockexchange.data
 
-import io.github.konstantinberkow.mockexchange.entity.Balance
 import io.github.konstantinberkow.mockexchange.entity.Currency
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.flow.update
 
 class InMemoryBalancesRepository(
-    initialBalances: LinkedHashMap<Currency, UInt>
+    initialBalances: Map<Currency, UInt>
 ) : UserBalancesRepository {
 
-    private val lock = Mutex()
-
-    private val balancesChannel = MutableStateFlow(
+    private val balancesStateFlow = MutableStateFlow(
         value = initialBalances
     )
 
-    override fun allBalances(): Flow<Set<Balance>> {
-        return balancesChannel
-            .map {
-                it.mapTo(linkedSetOf()) { (currency, balance) ->
-                    Balance(currency, balance)
-                }
-            }
+    override fun allBalances(): Flow<Map<Currency, UInt>> {
+        return balancesStateFlow
     }
 
     override suspend fun performExchange(
@@ -32,17 +22,21 @@ class InMemoryBalancesRepository(
         source: Currency,
         addition: UInt,
         target: Currency
-    ) = lock.withLock {
-        val latestMap = balancesChannel.value
-        val sourceBalance = latestMap[source]
-        require(sourceBalance != null && sourceBalance >= discharge) {
-            "Not enough funds in account of $source, required: $discharge, was: $sourceBalance"
+    ) {
+        balancesStateFlow.update { latestMap ->
+            val sourceBalance = latestMap[source]
+            require(sourceBalance != null && sourceBalance >= discharge) {
+                "Not enough funds in account of $source, required: $discharge, was: $sourceBalance"
+            }
+
+            val copy = latestMap.toMutableMap()
+
+            copy[source] = sourceBalance - discharge
+
+            val oldTarget = latestMap[target] ?: 0u
+            copy[target] = oldTarget + addition
+
+            copy
         }
-        latestMap[source] = sourceBalance - discharge
-
-        val oldTarget = latestMap[target] ?: 0u
-        latestMap[target] = oldTarget + addition
-
-        balancesChannel.emit(latestMap)
     }
 }

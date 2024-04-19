@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.Flow
 
 interface UserBalancesRepository {
 
-    fun allBalances(): Flow<Set<Balance>>
+    fun allBalances(): Flow<Map<Currency, UInt>>
 
     suspend fun performExchange(
         discharge: UInt,
