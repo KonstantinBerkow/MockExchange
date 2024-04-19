@@ -1,6 +1,7 @@
 package io.github.konstantinberkow.mockexchange.ui.overview
 
 import android.os.Bundle
+import android.text.TextWatcher
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Spinner
@@ -14,6 +15,7 @@ import io.github.konstantinberkow.mockexchange.R
 import io.github.konstantinberkow.mockexchange.databinding.FragmentOverviewBinding
 import io.github.konstantinberkow.mockexchange.entity.Balance
 import io.github.konstantinberkow.mockexchange.entity.Currency
+import io.github.konstantinberkow.mockexchange.ui.util.DecimalMaskTextWatcher
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.viewModel
@@ -27,8 +29,14 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
 
     private val viewModel: OverviewViewModel by viewModel()
 
+    private var binding: FragmentOverviewBinding? = null
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        val binding = FragmentOverviewBinding.bind(view)
+        val binding = FragmentOverviewBinding.bind(view).also {
+            this.binding = it
+        }
+
+        binding.sellEditText.addTextChangedListener(DecimalMaskTextWatcher())
 
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(state = Lifecycle.State.STARTED) {
@@ -54,6 +62,14 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
     override fun onStart() {
         super.onStart()
         viewModel.accept(OverviewViewModel.Action.Load)
+    }
+
+    override fun onDestroyView() {
+        binding?.run {
+        }
+        binding = null
+
+        super.onDestroyView()
     }
 
     private fun FragmentOverviewBinding.changeVisibility(
@@ -146,12 +162,14 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
                 currencies.map { it.identifier }
             ).also {
                 it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-                Timber.tag(TAG).d("Create adapter for spinner: %s", resources.getResourceEntryName(id))
+                Timber.tag(TAG)
+                    .d("Create adapter for spinner: %s", resources.getResourceEntryName(id))
                 adapter = it
             }
         } else {
             if (oldAdapter.contentShouldChange(currencies)) {
-                Timber.tag(TAG).d("Change adapter for spinner: %s", resources.getResourceEntryName(id))
+                Timber.tag(TAG)
+                    .d("Change adapter for spinner: %s", resources.getResourceEntryName(id))
                 oldAdapter.setNotifyOnChange(false)
                 oldAdapter.clear()
                 oldAdapter.addAll(currencies.map { it.identifier })
