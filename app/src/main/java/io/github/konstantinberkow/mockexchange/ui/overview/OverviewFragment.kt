@@ -1,10 +1,12 @@
 package io.github.konstantinberkow.mockexchange.ui.overview
 
 import android.os.Bundle
-import android.text.TextWatcher
 import android.view.View
+import android.view.inputmethod.EditorInfo
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Spinner
+import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -15,8 +17,15 @@ import io.github.konstantinberkow.mockexchange.R
 import io.github.konstantinberkow.mockexchange.databinding.FragmentOverviewBinding
 import io.github.konstantinberkow.mockexchange.entity.Balance
 import io.github.konstantinberkow.mockexchange.entity.Currency
+import io.github.konstantinberkow.mockexchange.flow_extensions.logEach
+import io.github.konstantinberkow.mockexchange.ui.util.AdapterViewSelectionEvent
 import io.github.konstantinberkow.mockexchange.ui.util.DecimalMaskTextWatcher
+import io.github.konstantinberkow.mockexchange.ui.util.ParseTextInput
+import io.github.konstantinberkow.mockexchange.ui.util.editorActionEvents
+import io.github.konstantinberkow.mockexchange.ui.util.hideSoftKeyboard
+import io.github.konstantinberkow.mockexchange.ui.util.onItemSelectedFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import timber.log.Timber
@@ -38,8 +47,16 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
 
         binding.sellEditText.addTextChangedListener(DecimalMaskTextWatcher())
 
+        binding.sellDropdown.onItemSelectedFlow()
+            .map(ConvertToVMSelection(type = OverviewViewModel.Action.SelectedCurrency.Type.Sell))
+
+        binding.buyDropdown.onItemSelectedFlow()
+            .map(ConvertToVMSelection(type = OverviewViewModel.Action.SelectedCurrency.Type.Buy))
+
         viewLifecycleOwner.lifecycleScope.launch {
             viewLifecycleOwner.repeatOnLifecycle(state = Lifecycle.State.STARTED) {
+                val viewModelConsumer = viewModel::accept
+
                 launch {
                     viewModel.state().collectLatest {
                         Timber.tag(TAG).d("UIState: %s", it)
@@ -55,6 +72,27 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
                         Timber.tag(TAG).d("single time event: %s", it)
                     }
                 }
+                launch {
+                    binding.sellEditText
+                        .editorActionEvents { actionId, event ->
+                            Timber.tag(TAG).d("action: %d, key event: %s", actionId, event)
+                            actionId == EditorInfo.IME_ACTION_DONE
+                        }
+                        .map(ParseTextInput)
+                        .logEach(TAG, "parsed number: %s")
+                        .collectLatest { parsedNumber ->
+                            if (parsedNumber == null) {
+                                Toast.makeText(
+                                    requireContext(),
+                                    R.string.please_provide_valid_number,
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                binding.sellDropdown.performClick()
+                                binding.root.hideSoftKeyboard()
+                            }
+                        }
+                }
             }
         }
     }
@@ -65,8 +103,6 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
     }
 
     override fun onDestroyView() {
-        binding?.run {
-        }
         binding = null
 
         super.onDestroyView()
@@ -168,11 +204,24 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
             }
         } else {
             if (oldAdapter.contentShouldChange(currencies)) {
+                val selectedCurrency = this.selectedItemPosition
+                    .takeIf { it != AdapterView.INVALID_POSITION }
+                    ?.let { oldAdapter.getItem(it) }
+                Timber.tag(TAG).d("Selected currency: %s", selectedCurrency)
+                val newList = currencies.map { it.identifier }
+                val newSelectedPosition = selectedCurrency?.let {
+                    newList.indexOf(it)
+                }
+                Timber.tag(TAG).d("Update position: %d", newSelectedPosition)
+
                 Timber.tag(TAG)
                     .d("Change adapter for spinner: %s", resources.getResourceEntryName(id))
                 oldAdapter.setNotifyOnChange(false)
                 oldAdapter.clear()
-                oldAdapter.addAll(currencies.map { it.identifier })
+                oldAdapter.addAll(newList)
+                if (newSelectedPosition != null && newSelectedPosition >= 0) {
+                    setSelection(newSelectedPosition)
+                }
                 oldAdapter.notifyDataSetChanged()
             }
         }
@@ -196,4 +245,17 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
 
         return false
     }
+}
+
+private class ConvertToVMSelection(
+    private val type: OverviewViewModel.Action.SelectedCurrency.Type
+) : suspend (AdapterViewSelectionEvent) -> OverviewViewModel.Action.SelectedCurrency {
+
+    override suspend fun invoke(selection: AdapterViewSelectionEvent) =
+        OverviewViewModel.Action.SelectedCurrency(
+            type = type,
+            currency = (selection.selectedValue as? String)?.let {
+                Currency(it)
+            }
+        )
 }

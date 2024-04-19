@@ -75,6 +75,7 @@
         android:layout_toEndOf="@+id/sell_label"
         android:background="@android:color/transparent"
         android:hint="@string/sell_input_hint"
+        android:imeOptions="actionDone"
         tools:ignore="Autofill" />
 
     <Spinner

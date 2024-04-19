@@ -296,6 +296,21 @@ class OverviewViewModel(
 
         data object Load : Action
 
+        data class SelectedCurrency(
+            val type: Type,
+            val currency: Currency?
+        ) : Action {
+
+            enum class Type {
+                Sell,
+                Buy
+            }
+        }
+
+        data class ParsedInput(
+            val sellAmount: UInt?,
+        ) : Action
+
         data class EstimateExchange(
             val amount: UInt,
             val source: Currency,
