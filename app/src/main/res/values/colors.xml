@@ -10,4 +10,5 @@
     <color name="sell_currency_icon_tint">#D96156</color>
     <color name="buy_currency_icon_tint">#4F9A6F</color>
     <color name="divider_color">#F0F1F3</color>
+    <color name="money_income_text_color">#509A6F</color>
 </resources>

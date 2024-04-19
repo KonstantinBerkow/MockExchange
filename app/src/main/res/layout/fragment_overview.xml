@@ -116,16 +116,16 @@
         android:text="@string/buy_title" />
 
     <EditText
-        android:id="@+id/buy_edit_text"
-        style="@style/MoneyInputStyle"
+        android:id="@+id/buy_display_text"
+        style="@style/MoneyDisplayStyle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignTop="@id/buy_currency_image"
         android:layout_alignBottom="@id/buy_currency_image"
         android:layout_toStartOf="@+id/buy_dropdown"
         android:layout_toEndOf="@+id/buy_label"
-        android:hint="@string/buy_input_hint"
-        tools:ignore="Autofill" />
+        tools:ignore="Autofill"
+        tools:text="+100.30" />
 
     <Spinner
         android:id="@+id/buy_dropdown"

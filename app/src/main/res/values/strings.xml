@@ -7,5 +7,4 @@
     <string name="sell_title">Sell</string>
     <string name="sell_input_hint">Enter amount to sell</string>
     <string name="buy_title">Receive</string>
-    <string name="buy_input_hint">Enter amount to buy</string>
 </resources>

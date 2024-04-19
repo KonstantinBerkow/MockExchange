@@ -71,7 +71,7 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
         exchangeDivider.visibility = contentVisibility
         buyCurrencyImage.visibility = contentVisibility
         buyLabel.visibility = contentVisibility
-        buyEditText.visibility = contentVisibility
+        buyDisplayText.visibility = contentVisibility
         buyDropdown.visibility = contentVisibility
         submitExchangeButton.visibility = contentVisibility
 
@@ -113,10 +113,9 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
 
         // disable button and inputs while exchange happens
         val inputsEnabled = !state.performingExchange
-        buyEditText.isEnabled = inputsEnabled
-        buyDropdown.isEnabled = inputsEnabled
         sellEditText.isEnabled = inputsEnabled
         sellDropdown.isEnabled = inputsEnabled
+        buyDropdown.isEnabled = inputsEnabled
         submitExchangeButton.isEnabled = inputsEnabled
     }
 

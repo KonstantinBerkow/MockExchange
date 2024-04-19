@@ -16,6 +16,12 @@
         <item name="android:background">@android:color/transparent</item>
         <item name="android:gravity">center_vertical|end</item>
         <item name="android:inputType">numberDecimal</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="MoneyDisplayStyle" parent="MoneyInputStyle">
+        <item name="android:enabled">false</item>
+        <item name="android:textColor">@color/money_income_text_color</item>
     </style>
 
 </resources>
