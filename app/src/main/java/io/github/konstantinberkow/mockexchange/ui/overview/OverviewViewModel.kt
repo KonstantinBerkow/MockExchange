@@ -42,6 +42,9 @@ class OverviewViewModel(
         Timber.tag(TAG).d("updateSourceCurrency to %s", currency)
         viewModelScope.launch {
             selectedSourceCurrency.emit(currency)
+            if (currency != Currency.EUR) {
+                selectedTargetCurrency.emit(Currency.EUR)
+            }
         }
     }
 
@@ -49,6 +52,9 @@ class OverviewViewModel(
         Timber.tag(TAG).d("updateTargetCurrency to %s", currency)
         viewModelScope.launch {
             selectedTargetCurrency.emit(currency)
+            if (currency != Currency.EUR) {
+                selectedSourceCurrency.emit(Currency.EUR)
+            }
         }
     }
 
@@ -92,8 +98,8 @@ class OverviewViewModel(
         }
 
         UiState(
-            availableSourceCurrencies = allCurrenciesSorted - targetCurrency,
-            availableTargetCurrencies = allCurrenciesSorted - sourceCurrency,
+            availableSourceCurrencies = allCurrenciesSorted,
+            availableTargetCurrencies = allCurrenciesSorted,
             balances = balances,
             selectedSourceCurrency = sourceCurrency,
             selectedTargetCurrency = targetCurrency,
@@ -136,12 +142,10 @@ class OverviewViewModel(
     fun commitExchange() {
         viewModelScope.launch {
             val currentState = uiState.first()
-            Timber.tag(TAG).d("commitExchange")
             val removeAmount = currentState.dischargeFromSource ?: return@launch
             val from = currentState.selectedSourceCurrency
             val transferAmount = currentState.targetTransfer ?: return@launch
             val to = currentState.selectedTargetCurrency
-            Timber.tag(TAG).d("commitExchangec do")
 
             oneShotEvents.send(Event.ExchangeStarted)
 
