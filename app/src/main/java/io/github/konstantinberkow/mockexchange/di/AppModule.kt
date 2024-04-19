@@ -3,15 +3,19 @@ package io.github.konstantinberkow.mockexchange.di
 import com.google.gson.GsonBuilder
 import io.github.konstantinberkow.mockexchange.BuildConfig
 import io.github.konstantinberkow.mockexchange.data.CurrenciesRepository
+import io.github.konstantinberkow.mockexchange.data.ExchangeHistoryRepository
 import io.github.konstantinberkow.mockexchange.data.FavoriteCurrenciesRepository
 import io.github.konstantinberkow.mockexchange.data.FixedFavoriteCurrenciesRepository
 import io.github.konstantinberkow.mockexchange.data.InMemoryBalancesRepository
+import io.github.konstantinberkow.mockexchange.data.InMemoryExchangeHistoryRepository
 import io.github.konstantinberkow.mockexchange.data.UserBalancesRepository
 import io.github.konstantinberkow.mockexchange.entity.Currency
 import io.github.konstantinberkow.mockexchange.entity.exchange_rule.DischargeFeeUseCase
 import io.github.konstantinberkow.mockexchange.entity.exchange_rule.ExchangeCurrenciesUseCase
 import io.github.konstantinberkow.mockexchange.entity.exchange_rule.ExchangeError
+import io.github.konstantinberkow.mockexchange.entity.exchange_rule.NoFeeDischargeUseCase
 import io.github.konstantinberkow.mockexchange.entity.exchange_rule.StaticFeeUseCase
+import io.github.konstantinberkow.mockexchange.entity.exchange_rule.SwitchingDischargeFeeUseCase
 import io.github.konstantinberkow.mockexchange.remote.ExchangeRatesApi
 import io.github.konstantinberkow.mockexchange.remote.data.NetworkCurrenciesRepository
 import io.github.konstantinberkow.mockexchange.remote.dto.RemoteExchangeData
@@ -21,7 +25,9 @@ import io.github.konstantinberkow.mockexchange.remote.serialization.RemoteExchan
 import io.github.konstantinberkow.mockexchange.remote.source.ExchangeRatesSource
 import io.github.konstantinberkow.mockexchange.remote.source.NetworkExchangeRatesSource
 import io.github.konstantinberkow.mockexchange.ui.overview.OverviewViewModel
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import org.koin.androidx.viewmodel.dsl.viewModel
@@ -32,6 +38,7 @@ import timber.log.Timber
 import kotlin.time.DurationUnit
 import kotlin.time.toDuration
 
+@OptIn(DelicateCoroutinesApi::class)
 val appModule = module {
 
     single {
@@ -73,7 +80,8 @@ val appModule = module {
         NetworkExchangeRatesSource(
             api = get(),
             dispatcher = Dispatchers.IO,
-            refreshDelay = 5.toDuration(unit = DurationUnit.SECONDS)
+            refreshDelay = 5.toDuration(unit = DurationUnit.SECONDS),
+            shareScope = GlobalScope
         )
     }
 
@@ -92,13 +100,31 @@ val appModule = module {
         )
     }
 
+    single<ExchangeHistoryRepository> {
+        InMemoryExchangeHistoryRepository(
+            initialExchangesCount = 0u
+        )
+    }
+
     single<DischargeFeeUseCase<UInt>> {
-        StaticFeeUseCase(percent = 0.05F)
+        val historyRepo: ExchangeHistoryRepository = get()
+        SwitchingDischargeFeeUseCase(
+            signal = historyRepo.exchangesCount(),
+            delegate = { exchangesCount ->
+                if (exchangesCount >= 5u) {
+                    NoFeeDischargeUseCase()
+                } else {
+                    StaticFeeUseCase(percent = 0.05F)
+                }
+            },
+            scope = GlobalScope
+        )
     }
 
     single<UserBalancesRepository> {
         InMemoryBalancesRepository(
-            linkedMapOf(Currency.EUR to 100000u)
+            initialBalances = mapOf(Currency.EUR to 100000u),
+            exchangeHistoryRepository = get(),
         )
     }
 

@@ -2,12 +2,12 @@ package io.github.konstantinberkow.mockexchange.entity.exchange_rule
 
 import io.github.konstantinberkow.mockexchange.entity.Currency
 
-class NoFeeDischargeUseCase : DischargeFeeUseCase<Any> {
+class NoFeeDischargeUseCase<T : Any> : DischargeFeeUseCase<T> {
 
     override suspend  fun calculateFeeForDischarge(
-        amount: Any,
+        amount: T,
         currency: Currency
-    ): DischargeFeeUseCase.Result<Any> {
+    ): DischargeFeeUseCase.Result<T> {
         return DischargeFeeUseCase.Result.Free
     }
 }

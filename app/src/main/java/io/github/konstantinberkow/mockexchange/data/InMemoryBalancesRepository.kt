@@ -6,7 +6,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 
 class InMemoryBalancesRepository(
-    initialBalances: Map<Currency, UInt>
+    initialBalances: Map<Currency, UInt>,
+    private val exchangeHistoryRepository: ExchangeHistoryRepository
 ) : UserBalancesRepository {
 
     private val balancesStateFlow = MutableStateFlow(
@@ -35,6 +36,13 @@ class InMemoryBalancesRepository(
 
             val oldTarget = latestMap[target] ?: 0u
             copy[target] = oldTarget + addition
+
+            exchangeHistoryRepository.record(
+                discharge = discharge,
+                source = source,
+                addition = addition,
+                target = target,
+            )
 
             copy
         }
