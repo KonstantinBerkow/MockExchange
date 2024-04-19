@@ -24,6 +24,7 @@ import io.github.konstantinberkow.mockexchange.remote.rules.SingleCurrencyBasedE
 import io.github.konstantinberkow.mockexchange.remote.serialization.RemoteExchangeDataGsonTypeAdapter
 import io.github.konstantinberkow.mockexchange.remote.source.ExchangeRatesSource
 import io.github.konstantinberkow.mockexchange.remote.source.NetworkExchangeRatesSource
+import io.github.konstantinberkow.mockexchange.remote.source.StartWithExchangeRatesSource
 import io.github.konstantinberkow.mockexchange.ui.overview.OverviewViewModel
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -77,11 +78,23 @@ val appModule = module {
     }
 
     single<ExchangeRatesSource> {
-        NetworkExchangeRatesSource(
-            api = get(),
-            dispatcher = Dispatchers.IO,
-            refreshDelay = 5.toDuration(unit = DurationUnit.SECONDS),
-            shareScope = GlobalScope
+        val coroutineScope = GlobalScope
+        StartWithExchangeRatesSource(
+            firstValue = RemoteExchangeData(
+                base = Currency.EUR,
+                exchangeRates = mapOf(
+                    Currency("UAH") to 31.018778,
+                    Currency("USD") to 1.129031,
+                    Currency("TRY") to 15.612274,
+                )
+            ),
+            delegate = NetworkExchangeRatesSource(
+                api = get(),
+                dispatcher = Dispatchers.IO,
+                refreshDelay = 5.toDuration(unit = DurationUnit.SECONDS),
+                shareScope = coroutineScope
+            ),
+            shareScope = coroutineScope
         )
     }
 

@@ -9,7 +9,12 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.withContext
+import retrofit2.HttpException
+import timber.log.Timber
+import java.io.IOException
 import kotlin.time.Duration
+
+private const val TAG = "NetworkExchangeRatesSource"
 
 class NetworkExchangeRatesSource(
     api: ExchangeRatesApi,
@@ -22,10 +27,20 @@ class NetworkExchangeRatesSource(
     override val exchangeRates =
         flow {
             while (true) {
-                val remoteData = withContext(dispatcher) {
-                    api.getExchangeRates()
+                val remoteData = try {
+                    withContext(dispatcher) {
+                        api.getExchangeRates()
+                    }
+                } catch (httpError: HttpException) {
+                    Timber.tag(TAG).e(httpError, "Network request failed")
+                    null
+                } catch (ioError: IOException) {
+                    Timber.tag(TAG).e(ioError, "Network request failed")
+                    null
                 }
-                emit(remoteData)
+                remoteData?.let {
+                    emit(it)
+                }
                 delay(refreshDelay)
             }
         }

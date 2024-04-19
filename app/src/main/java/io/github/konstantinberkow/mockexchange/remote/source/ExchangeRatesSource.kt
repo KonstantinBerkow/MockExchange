@@ -7,5 +7,5 @@ import kotlinx.coroutines.flow.SharedFlow
 
 interface ExchangeRatesSource {
 
-    val exchangeRates: SharedFlow<RemoteExchangeData>
+    val exchangeRates: Flow<RemoteExchangeData>
 }
