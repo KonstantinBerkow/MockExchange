@@ -10,6 +10,7 @@ import io.github.konstantinberkow.mockexchange.entity.exchange_rule.DischargeFee
 import io.github.konstantinberkow.mockexchange.entity.exchange_rule.ExchangeCurrenciesUseCase
 import io.github.konstantinberkow.mockexchange.entity.exchange_rule.ExchangeError
 import io.github.konstantinberkow.mockexchange.flow_extensions.ToPair
+import io.github.konstantinberkow.mockexchange.flow_extensions.logEach
 import io.github.konstantinberkow.mockexchange.flow_extensions.logError
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -17,7 +18,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -50,17 +50,25 @@ class OverviewViewModel(
     @OptIn(ExperimentalCoroutinesApi::class)
     private val uiState =
         actions.receiveAsFlow()
-            .combine(balancesRepository.allBalances().distinctUntilChanged(), ToPair())
+            .logEach(TAG, "actions.onEach: %s")
+            .combine(
+                balancesRepository.allBalances().logEach(TAG, "allBalances.onEach: %s"),
+                ToPair()
+            )
+            .logEach(TAG, "combined.onEach: %s")
             .flatMapLatest { (action, allBalances) ->
                 when (action) {
                     Action.Load ->
                         performLoad(allBalances)
+                            .logEach(TAG, "performLoad.onEach: %s")
 
                     is Action.EstimateExchange ->
                         estimateExchange(action)
+                            .logEach(TAG, "estimateExchange.onEach: %s")
 
                     is Action.CommitExchange ->
                         commitExchange(allBalances, action)
+                            .logEach(TAG, "commitExchange.onEach: %s")
                 }
             }
             .scan<Result, UiState>(UiState.Loading) { oldState, result ->
@@ -73,6 +81,7 @@ class OverviewViewModel(
                 Timber.tag(TAG).e(it, "Failed combining actions into state")
                 emit(UiState.LoadFailed)
             }
+            .logEach(TAG, "uiState.onEach: %s")
             .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5000),

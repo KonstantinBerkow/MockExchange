@@ -27,8 +27,6 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
 
     private val viewModel: OverviewViewModel by viewModel()
 
-    private val timber = Timber.tag(TAG)
-
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         val binding = FragmentOverviewBinding.bind(view)
 
@@ -36,7 +34,7 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
             viewLifecycleOwner.repeatOnLifecycle(state = Lifecycle.State.STARTED) {
                 launch {
                     viewModel.state().collectLatest {
-                        timber.d("UIState: %s", it)
+                        Timber.tag(TAG).d("UIState: %s", it)
                         when (it) {
                             OverviewViewModel.UiState.Loading -> binding.displayLoading()
                             is OverviewViewModel.UiState.Loaded -> binding.displayLoaded(it)
@@ -46,12 +44,15 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
                 }
                 launch {
                     viewModel.singleTimeEvents().collectLatest {
-                        timber.d("single time event: %s", it)
+                        Timber.tag(TAG).d("single time event: %s", it)
                     }
                 }
             }
         }
+    }
 
+    override fun onStart() {
+        super.onStart()
         viewModel.accept(OverviewViewModel.Action.Load)
     }
 
@@ -145,12 +146,12 @@ class OverviewFragment : Fragment(R.layout.fragment_overview) {
                 currencies.map { it.identifier }
             ).also {
                 it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-                timber.d("Create adapter for spinner: %s", resources.getResourceEntryName(id))
+                Timber.tag(TAG).d("Create adapter for spinner: %s", resources.getResourceEntryName(id))
                 adapter = it
             }
         } else {
             if (oldAdapter.contentShouldChange(currencies)) {
-                timber.d("Change adapter for spinner: %s", resources.getResourceEntryName(id))
+                Timber.tag(TAG).d("Change adapter for spinner: %s", resources.getResourceEntryName(id))
                 oldAdapter.setNotifyOnChange(false)
                 oldAdapter.clear()
                 oldAdapter.addAll(currencies.map { it.identifier })
